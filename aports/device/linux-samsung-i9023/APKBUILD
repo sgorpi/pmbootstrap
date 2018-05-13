@@ -1,0 +1,86 @@
+# Kernel config based on: arch/arm/configs/(CHANGEME!)
+
+pkgname="linux-samsung-i9023"
+pkgver=3.0.101
+pkgrel=0
+pkgdesc="Google Nexus S kernel fork"
+arch="armhf"
+_carch="arm"
+_flavor="samsung-i9023"
+url="https://kernel.org"
+license="GPL2"
+options="!strip !check !tracedeps"
+makedepends="perl sed installkernel bash gmp-dev bc linux-headers elfutils-dev xz"
+HOSTCC="${CC:-gcc}"
+HOSTCC="${HOSTCC#${CROSS_COMPILE}}"
+
+# Source
+_repository="android_kernel_samsung_crespo"
+_commit="5b1d1a7aa8e17f4911524179f1f235f10534495b"
+_config="config-${_flavor}.${arch}"
+source="
+	$pkgname-$_commit.tar.gz::https://github.com/LineageOS/${_repository}/archive/${_commit}.tar.gz
+	$_config
+	compiler-gcc6.h
+	01_fix_video_samsung.patch
+	02_fix_paranoid_network_disabled.patch
+"
+builddir="$srcdir/${_repository}-${_commit}"
+
+prepare() {
+	default_prepare
+
+	# gcc6 support
+	cp -v "$srcdir/compiler-gcc6.h" "$builddir/include/linux/"
+
+	# Remove -Werror from all makefiles
+	local i
+	local makefiles="$(find . -type f -name Makefile)
+		$(find . -type f -name Kbuild)"
+	for i in $makefiles; do
+		sed -i 's/-Werror-/-W/g' "$i"
+		sed -i 's/-Werror//g' "$i"
+	done
+
+	# Prepare kernel config ('yes ""' for kernels lacking olddefconfig)
+	cp "$srcdir"/$_config "$builddir"/.config
+	yes "" | make ARCH="$_carch" HOSTCC="$HOSTCC" oldconfig
+}
+
+menuconfig() {
+	cd "$builddir"
+	make ARCH="$_carch" menuconfig
+	cp .config "$startdir"/$_config
+}
+
+build() {
+	unset LDFLAGS
+	make ARCH="$_carch" CC="${CC:-gcc}" \
+		KBUILD_BUILD_VERSION="$((pkgrel + 1 ))-postmarketOS"
+}
+
+package() {
+	# kernel.release
+	install -D "$builddir/include/config/kernel.release" \
+		"$pkgdir/usr/share/kernel/$_flavor/kernel.release"
+
+	# zImage (find the right one)
+	cd "$builddir/arch/$_carch/boot"
+	_target="$pkgdir/boot/vmlinuz-$_flavor"
+	for _zimg in zImage-dtb Image.gz-dtb *zImage Image; do
+		[ -e "$_zimg" ] || continue
+		msg "zImage found: $_zimg"
+		install -Dm644 "$_zimg" "$_target"
+		break
+	done
+	if ! [ -e "$_target" ]; then
+		error "Could not find zImage in $PWD!"
+		return 1
+	fi
+}
+
+sha512sums="b0f22ded7b26b44b9581ac568c0e1880c3ae5a5f1790452ba2c95a8d3cc24e50e86ee25db855771aaf0cafd9de1b0ae5c8c052a20fa8e916556e5973a54653df  linux-samsung-i9023-5b1d1a7aa8e17f4911524179f1f235f10534495b.tar.gz
+a1a2ab8444846782debdadbfc234fd3c1a890c115261241ac44fb6129e992d4e9563a4b4e4620ee006ebda6098584f09d5e0706e928db45e2cdcda5965880354  config-samsung-i9023.armhf
+d80980e9474c82ba0ef1a6903b434d8bd1b092c40367ba543e72d2c119301c8b2d05265740e4104ca1ac5d15f6c4aa49e8776cb44264a9a28dc551e0d1850dcc  compiler-gcc6.h
+3d16a9d4606300489a9c782ee97854027328a6971af3f18fb4dee8bcd223cfefc370bdafd35e988e790e1ff9213261b49adb3c524b9f235a92ced19dae1cc3ab  01_fix_video_samsung.patch
+df62e03666313bb03d9a455eac875f170a55d378b6e56b847c1c6ff1ce5cfafcfdf1d7605754ca3c684840ea00357f9ec4c6621f6ff77377132a484b9258f6f7  02_fix_paranoid_network_disabled.patch"

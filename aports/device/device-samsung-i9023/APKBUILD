@@ -1,0 +1,22 @@
+# Reference: <https://postmarketos.org/devicepkg>
+pkgname="device-samsung-i9023"
+pkgdesc="Google Nexus S"
+pkgver=0.1
+pkgrel=0
+url="https://postmarketos.org"
+license="MIT"
+arch="noarch"
+options="!check"
+depends="postmarketos-base linux-samsung-i9023 mkbootimg mesa-dri-swrast"
+makedepends="devicepkg-dev"
+source="deviceinfo"
+
+build() {
+	devicepkg_build $startdir $pkgname
+}
+
+package() {
+	devicepkg_package $startdir $pkgname
+}
+
+sha512sums="09d86c4e3d621a7ea209be4c5d515155d7c2dbeb435d526f4888b43fcdbb59f098f4949bce21d40826888ce42d8bdf5c9f921ecb0143e4a4415d5a169e1bc3fd  deviceinfo"
